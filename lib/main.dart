@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
 void main() {
-  // We removed 'WidgetsFlutterBinding' and 'Firebase.initializeApp'
-  // so this will run instantly on your simulator/phone.
   runApp(const TrafficApp());
 }
 
@@ -15,8 +13,31 @@ class TrafficApp extends StatelessWidget {
       title: 'Traffic Violation Tracker',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.red),
+        // --- NEW COLOR SCHEME ---
+        // Primary: Olive Green, Background: Beige
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF556B2F), // Dark Olive Green
+          primary: const Color(0xFF556B2F),
+          secondary: const Color(0xFF8F9779), // Lighter Olive
+          surface: const Color(0xFFF5F5DC),   // Beige
+          onSurface: const Color(0xFF3E3E3E), // Dark Grey Text (for readability)
+        ),
+        scaffoldBackgroundColor: const Color(0xFFF5F5DC), // Beige Background
         useMaterial3: true,
+        
+        // Customizing App Bar to be Olive
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF556B2F),
+          foregroundColor: Colors.white, // Text color on AppBar
+        ),
+        
+        // Customizing Buttons
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF556B2F), // Olive Button
+            foregroundColor: const Color(0xFFF5F5DC), // Beige Text
+          ),
+        ),
       ),
       home: const LoginScreen(),
     );
@@ -35,18 +56,27 @@ class LoginScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.traffic_rounded, size: 80, color: Colors.red),
+            // Updated Icon Color
+            const Icon(Icons.traffic_rounded, size: 80, color: Color(0xFF556B2F)),
             const SizedBox(height: 20),
             const Text(
               "Traffic Guard",
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 28, 
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF556B2F), // Olive Text
+              ),
             ),
             const SizedBox(height: 40),
+            
+            // Text Fields
             const TextField(
               decoration: InputDecoration(
                 labelText: "Vehicle ID / Email",
                 border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.person),
+                prefixIcon: Icon(Icons.person, color: Color(0xFF556B2F)),
+                filled: true,
+                fillColor: Colors.white, // White box to pop against beige
               ),
             ),
             const SizedBox(height: 15),
@@ -55,13 +85,16 @@ class LoginScreen extends StatelessWidget {
               decoration: InputDecoration(
                 labelText: "Password",
                 border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.lock),
+                prefixIcon: Icon(Icons.lock, color: Color(0xFF556B2F)),
+                filled: true,
+                fillColor: Colors.white,
               ),
             ),
             const SizedBox(height: 30),
+            
+            // Login Button
             ElevatedButton(
               onPressed: () {
-                // Navigate to the Home Screen
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(builder: (context) => const HomeScreen()),
@@ -69,10 +102,8 @@ class LoginScreen extends StatelessWidget {
               },
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 50),
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
               ),
-              child: const Text("Login"),
+              child: const Text("Login", style: TextStyle(fontSize: 18)),
             ),
           ],
         ),
@@ -87,7 +118,6 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // This is "Mock Data" to simulate what the Pi would send
     final List<Map<String, dynamic>> fakeViolations = [
       {
         "type": "Wrong-Way Driving",
@@ -112,17 +142,17 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text("My Violations"),
-        backgroundColor: Colors.red,
-        foregroundColor: Colors.white,
       ),
       body: ListView.builder(
         itemCount: fakeViolations.length,
         itemBuilder: (context, index) {
           final item = fakeViolations[index];
           return Card(
+            // Making the card slightly off-white/lighter beige for contrast
+            color: const Color(0xFFFFFFF0), 
             margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             child: ListTile(
-              leading: Icon(item['icon'], color: Colors.red, size: 30),
+              leading: Icon(item['icon'], color: const Color(0xFF556B2F), size: 30),
               title: Text(
                 item['type'],
                 style: const TextStyle(fontWeight: FontWeight.bold),
@@ -131,12 +161,16 @@ class HomeScreen extends StatelessWidget {
               trailing: Text(
                 item['fine'],
                 style: const TextStyle(
-                    color: Colors.red, fontWeight: FontWeight.bold, fontSize: 15),
+                    color: Color(0xFF556B2F), 
+                    fontWeight: FontWeight.bold, 
+                    fontSize: 15),
               ),
               onTap: () {
-                // Later: Navigate to Details Screen with Map
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Loading Violation Details...")),
+                  const SnackBar(
+                    content: Text("Loading Violation Details..."),
+                    backgroundColor: Color(0xFF556B2F),
+                  ),
                 );
               },
             ),
