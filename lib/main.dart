@@ -201,11 +201,20 @@ class _MainAppLayoutState extends State<MainAppLayout> {
 }
 
 // --- 5. DASHBOARD TAB (SPEEDOMETER UI) ---
+// --- 5. DASHBOARD TAB (UPDATED WITH CLICKABLE ALERT) ---
 class DashboardTab extends StatelessWidget {
   const DashboardTab({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // 1. Define the data for the "Recent Alert" so we can pass it to the details screen
+    final Map<String, dynamic> recentAlertData = {
+      "violationType": "Speeding Detected",
+      "date": "Just now",
+      "fineAmount": "50",
+      "imageUrl": "https://cdn.pixabay.com/photo/2012/11/02/13/02/car-63930_1280.jpg"
+    };
+
     return Scaffold(
       appBar: AppBar(title: const Text("Traffic Guard Home")),
       body: SingleChildScrollView(
@@ -235,6 +244,7 @@ class DashboardTab extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
+            
             // Stats Row
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20.0),
@@ -246,8 +256,10 @@ class DashboardTab extends StatelessWidget {
                 ],
               ),
             ),
+            
             const SizedBox(height: 20),
-            // Recent Alert
+            
+            // Recent Alert (NOW CLICKABLE)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20.0),
               child: Column(
@@ -258,10 +270,24 @@ class DashboardTab extends StatelessWidget {
                   Card(
                     color: const Color(0xFFFFFFF0),
                     child: ListTile(
-                      leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.red.withOpacity(0.1), shape: BoxShape.circle), child: const Icon(Icons.warning, color: Colors.red)),
+                      leading: Container(
+                        padding: const EdgeInsets.all(8), 
+                        decoration: BoxDecoration(color: Colors.red.withOpacity(0.1), shape: BoxShape.circle), 
+                        child: const Icon(Icons.warning, color: Colors.red)
+                      ),
                       title: const Text("Speeding Detected"),
                       subtitle: const Text("Just now • Airport Road"),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+                      
+                      // --- NEW NAVIGATION CODE ---
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ViolationDetailsScreen(data: recentAlertData),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -364,7 +390,7 @@ class _ProfileTabState extends State<ProfileTab> {
             const SizedBox(height: 30),
             const CircleAvatar(radius: 50, backgroundColor: Color(0xFF556B2F), child: Icon(Icons.person, size: 50, color: Colors.white)),
             const SizedBox(height: 15),
-            const Text("Abdullah Al-Ajlouny", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+            const Text("Laith Abu-Abbas", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
             const Text("License: 99-12345", style: TextStyle(color: Colors.grey)),
             const SizedBox(height: 30),
             
