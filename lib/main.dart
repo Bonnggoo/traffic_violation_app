@@ -1,6 +1,9 @@
+import 'dart:async'; // For the Splash Screen timer
 import 'package:flutter/material.dart';
 
+// --- 1. INITIALIZATION (OFFLINE MODE) ---
 void main() {
+  // No Firebase initialization needed here for offline mode
   runApp(const TrafficApp());
 }
 
@@ -13,18 +16,20 @@ class TrafficApp extends StatelessWidget {
       title: 'Traffic Violation Tracker',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
+        // --- OLIVE & BEIGE THEME ---
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF556B2F), // Dark Olive Green
           primary: const Color(0xFF556B2F),
           secondary: const Color(0xFF8F9779),
           surface: const Color(0xFFF5F5DC),   // Beige
-          onSurface: const Color(0xFF3E3E3E),
+          onSurface: const Color(0xFF3E3E3E), // Dark Grey
         ),
         scaffoldBackgroundColor: const Color(0xFFF5F5DC),
         useMaterial3: true,
         appBarTheme: const AppBarTheme(
           backgroundColor: Color(0xFF556B2F),
           foregroundColor: Colors.white,
+          elevation: 0,
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
@@ -32,19 +37,82 @@ class TrafficApp extends StatelessWidget {
             foregroundColor: const Color(0xFFF5F5DC),
           ),
         ),
-        // Navigation Bar Theme
         bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-          backgroundColor: Color(0xFFFFFFF0), // Off-white bar
-          selectedItemColor: Color(0xFF556B2F), // Olive for active
-          unselectedItemColor: Colors.grey,     // Grey for inactive
+          backgroundColor: Color(0xFFFFFFF0),
+          selectedItemColor: Color(0xFF556B2F),
+          unselectedItemColor: Colors.grey,
         ),
       ),
-      home: const LoginScreen(),
+      // Start with the Splash Screen
+      home: const SplashScreen(),
     );
   }
 }
 
-// --- 1. LOGIN SCREEN ---
+// --- 2. SPLASH SCREEN ---
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Wait 3 seconds, then go to Login
+    Timer(const Duration(seconds: 3), () {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF556B2F), // Full Olive Background
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Logo Icon (White)
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.traffic_rounded, size: 80, color: Color(0xFF556B2F)),
+            ),
+            const SizedBox(height: 20),
+            // App Name
+            const Text(
+              "Traffic Guard",
+              style: TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                letterSpacing: 1.5,
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              "Smart Detection System",
+              style: TextStyle(color: Colors.white70, fontSize: 16),
+            ),
+            const SizedBox(height: 50),
+            // Loading Spinner
+            const CircularProgressIndicator(color: Colors.white),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// --- 3. LOGIN SCREEN ---
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
 
@@ -59,7 +127,7 @@ class LoginScreen extends StatelessWidget {
             const Icon(Icons.traffic_rounded, size: 80, color: Color(0xFF556B2F)),
             const SizedBox(height: 20),
             const Text(
-              "Traffic Guard",
+              "Welcome Back",
               style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF556B2F)),
             ),
             const SizedBox(height: 40),
@@ -68,8 +136,7 @@ class LoginScreen extends StatelessWidget {
                 labelText: "Vehicle ID / Email",
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.person, color: Color(0xFF556B2F)),
-                filled: true,
-                fillColor: Colors.white,
+                filled: true, fillColor: Colors.white,
               ),
             ),
             const SizedBox(height: 15),
@@ -79,14 +146,12 @@ class LoginScreen extends StatelessWidget {
                 labelText: "Password",
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.lock, color: Color(0xFF556B2F)),
-                filled: true,
-                fillColor: Colors.white,
+                filled: true, fillColor: Colors.white,
               ),
             ),
             const SizedBox(height: 30),
             ElevatedButton(
               onPressed: () {
-                // Navigate to the NEW Main Layout (Bottom Nav)
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(builder: (context) => const MainAppLayout()),
@@ -102,7 +167,7 @@ class LoginScreen extends StatelessWidget {
   }
 }
 
-// --- 2. MAIN LAYOUT (Holds the Bottom Navigation) ---
+// --- 4. MAIN LAYOUT (BOTTOM NAV) ---
 class MainAppLayout extends StatefulWidget {
   const MainAppLayout({super.key});
 
@@ -112,29 +177,21 @@ class MainAppLayout extends StatefulWidget {
 
 class _MainAppLayoutState extends State<MainAppLayout> {
   int _currentIndex = 0;
-
-  // These are the 3 screens for the bottom buttons
   final List<Widget> _screens = [
-    const DashboardTab(),   // Index 0: Home
-    const ViolationsTab(),  // Index 1: Violations List
-    const ProfileTab(),     // Index 2: Profile
+    const DashboardTab(),
+    const ViolationsTab(),
+    const ProfileTab(),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // The body changes based on which button is clicked
       body: _screens[_currentIndex],
-      
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
+        onTap: (index) => setState(() => _currentIndex = index),
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
+          BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: "Dashboard"),
           BottomNavigationBarItem(icon: Icon(Icons.warning_amber_rounded), label: "Violations"),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
         ],
@@ -143,7 +200,7 @@ class _MainAppLayoutState extends State<MainAppLayout> {
   }
 }
 
-// --- TAB 1: DASHBOARD (Home) ---
+// --- 5. DASHBOARD TAB (SPEEDOMETER UI) ---
 class DashboardTab extends StatelessWidget {
   const DashboardTab({super.key});
 
@@ -151,35 +208,64 @@ class DashboardTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Traffic Guard Home")),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
+      body: SingleChildScrollView(
         child: Column(
           children: [
-            // Safety Score Card
+            // Green Header with Gauge
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: const Color(0xFF556B2F),
-                borderRadius: BorderRadius.circular(20),
+              padding: const EdgeInsets.only(bottom: 30, top: 10),
+              decoration: const BoxDecoration(
+                color: Color(0xFF556B2F),
+                borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
               ),
-              child: const Column(
+              child: Column(
                 children: [
-                  Text("Safety Score", style: TextStyle(color: Colors.white, fontSize: 18)),
-                  SizedBox(height: 10),
-                  Text("85", style: TextStyle(color: Colors.white, fontSize: 60, fontWeight: FontWeight.bold)),
-                  Text("Good Driver", style: TextStyle(color: Colors.white70)),
+                  const Text("Safety Score", style: TextStyle(color: Colors.white70, fontSize: 18)),
+                  const SizedBox(height: 20),
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(width: 120, height: 120, child: CircularProgressIndicator(value: 1.0, color: Colors.white24, strokeWidth: 10)),
+                      const SizedBox(width: 120, height: 120, child: CircularProgressIndicator(value: 0.85, color: Colors.white, strokeWidth: 10, strokeCap: StrokeCap.round)),
+                      const Column(children: [Text("85", style: TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.bold)), Text("Good", style: TextStyle(color: Colors.white, fontSize: 12))]),
+                    ],
+                  ),
                 ],
               ),
             ),
             const SizedBox(height: 20),
-            // Quick Stats
-            Row(
-              children: [
-                Expanded(child: _buildStatCard(context, "Pending Fines", "150 JOD", Colors.red)),
-                const SizedBox(width: 10),
-                Expanded(child: _buildStatCard(context, "Clean Days", "12", Colors.green)),
-              ],
+            // Stats Row
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0),
+              child: Row(
+                children: [
+                  Expanded(child: _buildStatCard("Pending Fines", "150 JOD", Icons.money_off, Colors.red)),
+                  const SizedBox(width: 15),
+                  Expanded(child: _buildStatCard("Clean Days", "12 Days", Icons.check_circle, const Color(0xFF556B2F))),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Recent Alert
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text("Recent Alert", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF556B2F))),
+                  const SizedBox(height: 10),
+                  Card(
+                    color: const Color(0xFFFFFFF0),
+                    child: ListTile(
+                      leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.red.withOpacity(0.1), shape: BoxShape.circle), child: const Icon(Icons.warning, color: Colors.red)),
+                      title: const Text("Speeding Detected"),
+                      subtitle: const Text("Just now • Airport Road"),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -187,36 +273,41 @@ class DashboardTab extends StatelessWidget {
     );
   }
 
-  Widget _buildStatCard(BuildContext context, String title, String value, Color color) {
+  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
     return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 5)],
-      ),
-      child: Column(
-        children: [
-          Text(title, style: const TextStyle(color: Colors.grey)),
-          const SizedBox(height: 5),
-          Text(value, style: TextStyle(color: color, fontSize: 22, fontWeight: FontWeight.bold)),
-        ],
-      ),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(icon, color: color, size: 30), const SizedBox(height: 10), Text(value, style: TextStyle(color: color, fontSize: 22, fontWeight: FontWeight.bold)), Text(title, style: const TextStyle(color: Colors.grey, fontSize: 14))]),
     );
   }
 }
 
-// --- TAB 2: VIOLATIONS LIST (Your old HomeScreen) ---
+// --- 6. VIOLATIONS TAB (OFFLINE DUMMY DATA) ---
 class ViolationsTab extends StatelessWidget {
   const ViolationsTab({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Fake data for offline mode
+    // FAKE DATA FOR OFFLINE MODE
     final List<Map<String, dynamic>> fakeViolations = [
-      {"type": "Wrong-Way Driving", "date": "2024-05-12 14:30", "fine": "100 JOD", "icon": Icons.warning},
-      {"type": "Speeding (140 km/h)", "date": "2024-05-10 09:15", "fine": "50 JOD", "icon": Icons.speed},
-      {"type": "Speeding (120 km/h)", "date": "2024-05-08 18:20", "fine": "30 JOD", "icon": Icons.speed},
+      {
+        "violationType": "Wrong-Way Driving",
+        "date": "2024-05-12 14:30",
+        "fineAmount": "100",
+        "imageUrl": "https://cdn.pixabay.com/photo/2012/11/02/13/02/car-63930_1280.jpg"
+      },
+      {
+        "violationType": "Speeding (140 km/h)",
+        "date": "2024-05-10 09:15",
+        "fineAmount": "50",
+        "imageUrl": "https://cdn.pixabay.com/photo/2012/11/02/13/02/car-63930_1280.jpg"
+      },
+      {
+        "violationType": "Speeding (120 km/h)",
+        "date": "2024-05-08 18:20",
+        "fineAmount": "30",
+        "imageUrl": "https://cdn.pixabay.com/photo/2012/11/02/13/02/car-63930_1280.jpg"
+      },
     ];
 
     return Scaffold(
@@ -229,14 +320,18 @@ class ViolationsTab extends StatelessWidget {
             color: const Color(0xFFFFFFF0),
             margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             child: ListTile(
-              leading: Icon(item['icon'], color: const Color(0xFF556B2F), size: 30),
-              title: Text(item['type'], style: const TextStyle(fontWeight: FontWeight.bold)),
+              leading: Icon(
+                  item['violationType'].contains('Speeding') ? Icons.speed : Icons.warning_amber_rounded,
+                  color: const Color(0xFF556B2F),
+                  size: 30
+              ),
+              title: Text(item['violationType'], style: const TextStyle(fontWeight: FontWeight.bold)),
               subtitle: Text(item['date']),
-              trailing: Text(item['fine'], style: const TextStyle(color: Color(0xFF556B2F), fontWeight: FontWeight.bold)),
+              trailing: Text("${item['fineAmount']} JOD", style: const TextStyle(color: Color(0xFF556B2F), fontWeight: FontWeight.bold)),
               onTap: () {
                 Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => ViolationDetailsScreen(data: item)),
+                    context,
+                    MaterialPageRoute(builder: (context) => ViolationDetailsScreen(data: item))
                 );
               },
             ),
@@ -247,55 +342,51 @@ class ViolationsTab extends StatelessWidget {
   }
 }
 
-// --- TAB 3: PROFILE SCREEN ---
-class ProfileTab extends StatelessWidget {
+// --- 7. PROFILE TAB (SETTINGS) ---
+class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
+
+  @override
+  State<ProfileTab> createState() => _ProfileTabState();
+}
+
+class _ProfileTabState extends State<ProfileTab> {
+  bool _notifications = true;
+  bool _email = false;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("My Profile")),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
+      appBar: AppBar(title: const Text("Driver Profile")),
+      body: SingleChildScrollView(
         child: Column(
           children: [
+            const SizedBox(height: 30),
             const CircleAvatar(radius: 50, backgroundColor: Color(0xFF556B2F), child: Icon(Icons.person, size: 50, color: Colors.white)),
-            const SizedBox(height: 10),
+            const SizedBox(height: 15),
             const Text("Abdullah Al-Ajlouny", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
             const Text("License: 99-12345", style: TextStyle(color: Colors.grey)),
             const SizedBox(height: 30),
-            _buildProfileOption(Icons.car_rental, "My Vehicles"),
-            _buildProfileOption(Icons.notifications, "Notifications"),
-            _buildProfileOption(Icons.language, "Language"),
-            const Spacer(),
-            ElevatedButton(
-              onPressed: () {
-                // Logout Logic
-                Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
-              }, 
-              child: const Text("Logout")
-            ),
+            
+            _header("Account Settings"),
+            Container(color: Colors.white, child: SwitchListTile(title: const Text("Push Notifications"), value: _notifications, activeColor: const Color(0xFF556B2F), onChanged: (v) => setState(() => _notifications = v))),
+            Container(color: Colors.white, child: SwitchListTile(title: const Text("Email Alerts"), value: _email, activeColor: const Color(0xFF556B2F), onChanged: (v) => setState(() => _email = v))),
+            
+            _header("My Vehicle"),
+            const Card(color: Colors.white, margin: EdgeInsets.symmetric(horizontal: 20, vertical: 5), child: ListTile(leading: Icon(Icons.directions_car, color: Color(0xFF556B2F)), title: Text("Toyota Prius"), subtitle: Text("Plate: 50-99999"))),
+            
+            const SizedBox(height: 40),
+            Padding(padding: const EdgeInsets.symmetric(horizontal: 20), child: OutlinedButton.icon(onPressed: () => Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen())), icon: const Icon(Icons.logout, color: Colors.red), label: const Text("Log Out", style: TextStyle(color: Colors.red)), style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red), minimumSize: const Size(double.infinity, 50)))),
+            const SizedBox(height: 20),
           ],
         ),
       ),
     );
   }
-
-  Widget _buildProfileOption(IconData icon, String title) {
-    return Card(
-      color: Colors.white,
-      margin: const EdgeInsets.symmetric(vertical: 5),
-      child: ListTile(
-        leading: Icon(icon, color: const Color(0xFF556B2F)),
-        title: Text(title),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-      ),
-    );
-  }
+  Widget _header(String t) => Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10), color: Colors.grey[200], child: Text(t, style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)));
 }
 
-// --- DETAIL SCREEN (Same as before) ---
-// --- 3. VIOLATION DETAILS SCREEN (UPDATED LAYOUT) ---
+// --- 8. DETAILS SCREEN (SPLIT LAYOUT) ---
 class ViolationDetailsScreen extends StatelessWidget {
   final Map<String, dynamic> data;
   const ViolationDetailsScreen({super.key, required this.data});
@@ -307,127 +398,44 @@ class ViolationDetailsScreen extends StatelessWidget {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // A. TEXT DETAILS (Now on Top)
+            // A. Text Details
             Padding(
               padding: const EdgeInsets.all(20.0),
               child: Card(
-                elevation: 0,
-                color: const Color(0xFFFFFFF0), // Light Ivory background
-                shape: RoundedRectangleBorder(
-                  side: const BorderSide(color: Color(0xFF556B2F), width: 1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
+                elevation: 0, color: const Color(0xFFFFFFF0),
+                shape: RoundedRectangleBorder(side: const BorderSide(color: Color(0xFF556B2F)), borderRadius: BorderRadius.circular(10)),
                 child: Padding(
                   padding: const EdgeInsets.all(15.0),
-                  child: Column(
-                    children: [
-                      _row(context, "Violation Type", data['type'], true),
-                      const Divider(),
-                      _row(context, "Date & Time", data['date'], false),
-                      const Divider(),
-                      _row(context, "Fine Amount", data['fine'], true, Colors.red),
-                      const Divider(),
-                      _row(context, "Location", "Amman, Jordan", false),
-                    ],
-                  ),
+                  child: Column(children: [
+                    _row(context, "Violation Type", data['violationType'] ?? 'Unknown', true), const Divider(),
+                    _row(context, "Date & Time", data['date'] ?? 'Unknown', false), const Divider(),
+                    _row(context, "Fine Amount", "${data['fineAmount']} JOD", true, Colors.red), const Divider(),
+                    _row(context, "Location", "Amman, Jordan", false),
+                  ]),
                 ),
               ),
             ),
-
-            // B. MAP AND IMAGE (Side-by-Side)
+            // B. Map & Image
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20.0),
               child: SizedBox(
-                height: 180, // Fixed height for both boxes
-                child: Row(
-                  children: [
-                    // 1. The Map (Left Side)
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.grey[300],
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.grey),
-                        ),
-                        child: const Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.location_on, color: Colors.red, size: 40),
-                            Text("Map Location", style: TextStyle(color: Colors.black54)),
-                          ],
-                        ),
-                      ),
-                    ),
-                    
-                    const SizedBox(width: 10), // Spacing between them
-
-                    // 2. The Snapshot (Right Side)
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.black12,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.grey),
-                        ),
-                        clipBehavior: Clip.antiAlias, // Clips the image to rounded corners
-                        child: Image.network(
-                          // Use the real image URL if available, otherwise placeholder
-                          data['imageUrl'] ?? "https://cdn.pixabay.com/photo/2012/11/02/13/02/car-63930_1280.jpg",
-                          fit: BoxFit.cover,
-                          errorBuilder: (c, e, s) => const Center(
-                            child: Icon(Icons.broken_image, size: 40, color: Colors.grey),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                height: 180,
+                child: Row(children: [
+                  Expanded(child: Container(decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey)), child: const Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.location_on, color: Colors.red, size: 40), Text("Map Location")]))),
+                  const SizedBox(width: 10),
+                  Expanded(child: Container(decoration: BoxDecoration(color: Colors.black12, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey)), clipBehavior: Clip.antiAlias, child: Image.network(data['imageUrl'] ?? "", fit: BoxFit.cover, errorBuilder: (c, e, s) => const Center(child: Icon(Icons.broken_image, size: 40, color: Colors.grey))))),
+                ]),
               ),
             ),
-
-            // C. DISPUTE BUTTON (Bottom)
+            // C. Button
             Padding(
               padding: const EdgeInsets.all(20.0),
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Dispute request submitted.")),
-                  );
-                },
-                icon: const Icon(Icons.gavel),
-                label: const Text("Dispute This Violation"),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 50),
-                ),
-              ),
+              child: ElevatedButton.icon(onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Dispute sent."))), icon: const Icon(Icons.gavel), label: const Text("Dispute This Violation"), style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50))),
             ),
           ],
         ),
       ),
     );
   }
-
-  // Helper widget for text rows
-  Widget _row(BuildContext context, String label, String value, bool bold, [Color? color]) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 14)),
-          Flexible( // Prevents long text from breaking the layout
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: bold ? FontWeight.bold : FontWeight.normal,
-                color: color ?? Theme.of(context).colorScheme.primary,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _row(BuildContext c, String l, String v, bool b, [Color? col]) => Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(l, style: const TextStyle(color: Colors.grey)), Flexible(child: Text(v, style: TextStyle(fontWeight: b ? FontWeight.bold : FontWeight.normal, color: col ?? Colors.black)))]));
 }
