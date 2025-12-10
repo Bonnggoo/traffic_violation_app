@@ -360,7 +360,7 @@ class _ProfileTabState extends State<ProfileTab> {
             const SizedBox(height: 30),
             const CircleAvatar(radius: 50, backgroundColor: Color(0xFF556B2F), child: Icon(Icons.person, size: 50, color: Colors.white)),
             const SizedBox(height: 15),
-            const Text("Abdullah Al-Ajlouny", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+            const Text("Laith Abu-Abbas", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
             const Text("License: 99-12345", style: TextStyle(color: Colors.grey)),
             const SizedBox(height: 30),
             _header("Account Settings"),
