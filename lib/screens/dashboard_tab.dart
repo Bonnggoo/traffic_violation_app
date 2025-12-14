@@ -1,85 +1,202 @@
 import 'package:flutter/material.dart';
-import 'package:traffic_violation_app/screens/details_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'details_screen.dart'; // To open the violation when clicked
 
-// --- 5. DASHBOARD TAB ---
 class DashboardTab extends StatelessWidget {
   const DashboardTab({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Dummy alert for the dashboard (separate from the real list for now)
-    final Map<String, dynamic> recentAlertData = {
-      "violationType": "Speeding Detected",
-      "date": "Just now",
-      "fineAmount": "50",
-      "imageUrl": "https://cdn.pixabay.com/photo/2012/11/02/13/02/car-63930_1280.jpg"
-    };
+    // 1. Identify the Driver
+    final user = FirebaseAuth.instance.currentUser;
+    String myPlateNumber = "Unknown";
+    if (user != null && user.email != null) {
+      myPlateNumber = user.email!.split('@')[0].toUpperCase();
+    }
 
-    return Scaffold(
-      appBar: AppBar(title: const Text("Traffic Guard Home")),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.only(bottom: 30, top: 10),
-              decoration: const BoxDecoration(
-                color: Color(0xFF556B2F),
-                borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
-              ),
-              child: Column(
-                children: [
-                  const Text("Safety Score", style: TextStyle(color: Colors.white70, fontSize: 18)),
-                  const SizedBox(height: 20),
-                  Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      SizedBox(width: 120, height: 120, child: CircularProgressIndicator(value: 1.0, color: Colors.white24, strokeWidth: 10)),
-                      const SizedBox(width: 120, height: 120, child: CircularProgressIndicator(value: 0.85, color: Colors.white, strokeWidth: 10, strokeCap: StrokeCap.round)),
-                      const Column(children: [Text("85", style: TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.bold)), Text("Good", style: TextStyle(color: Colors.white, fontSize: 12))]),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20.0),
-              child: Row(
-                children: [
-                  Expanded(child: _buildStatCard("Pending Fines", "150 JOD", Icons.money_off, Colors.red)),
-                  const SizedBox(width: 15),
-                  Expanded(child: _buildStatCard("Clean Days", "12 Days", Icons.check_circle, const Color(0xFF556B2F))),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text("Recent Alert", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF556B2F))),
-                  const SizedBox(height: 10),
-                  Card(
-                    color: const Color(0xFFFFFFF0),
-                    child: ListTile(
-                      leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.red.withOpacity(0.1), shape: BoxShape.circle), child: const Icon(Icons.warning, color: Colors.red)),
-                      title: const Text("Speeding Detected"),
-                      subtitle: const Text("Just now • Airport Road"),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
-                      onTap: () {
-                         Navigator.push(context, MaterialPageRoute(builder: (context) => ViolationDetailsScreen(data: recentAlertData)));
-                      },
+    return StreamBuilder<QuerySnapshot>(
+      // 2. Listen to the Database (Same filter as Violations Tab)
+      stream: FirebaseFirestore.instance
+          .collection('violations')
+          .where('licensePlate', isEqualTo: myPlateNumber)
+          .orderBy('timestamp', descending: true)
+          .snapshots(),
+          
+      builder: (context, snapshot) {
+        // --- CALCULATIONS ---
+        int totalFines = 0;
+        int violationCount = 0;
+        int safetyScore = 100;
+        List<QueryDocumentSnapshot> recentDocs = [];
+
+        if (snapshot.hasData) {
+          final docs = snapshot.data!.docs;
+          violationCount = docs.length;
+          
+          // Sum up the fines
+          for (var doc in docs) {
+            totalFines += (doc['fineAmount'] as num).toInt();
+          }
+
+          // Calculate Safety Score (100 - 10 per violation)
+          safetyScore = (100 - (violationCount * 10)).clamp(0, 100);
+
+          // Get just the newest 2 violations for the "Recent" section
+          if (docs.length > 2) {
+            recentDocs = docs.sublist(0, 2);
+          } else {
+            recentDocs = docs;
+          }
+        }
+        // --------------------
+
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text("Traffic Guard"),
+            centerTitle: false,
+            actions: [
+              IconButton(onPressed: () {}, icon: const Icon(Icons.notifications_none))
+            ],
+          ),
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // A. WELCOME HEADER
+                Text(
+                  "Hello, Driver ($myPlateNumber)",
+                  style: const TextStyle(fontSize: 16, color: Colors.grey),
+                ),
+                const Text(
+                  "Dashboard Overview",
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 20),
+
+                // B. SUMMARY CARDS (Dynamic Data)
+                Row(
+                  children: [
+                    _summaryCard(
+                      "Total Fines", 
+                      "$totalFines JOD", 
+                      Icons.money_off, 
+                      Colors.red
                     ),
-                  ),
-                ],
-              ),
+                    const SizedBox(width: 15),
+                    _summaryCard(
+                      "Safety Score", 
+                      "$safetyScore%", 
+                      Icons.shield, 
+                      safetyScore > 80 ? Colors.green : Colors.orange
+                    ),
+                  ],
+                ),
+                
+                const SizedBox(height: 30),
+
+                // C. RECENT ACTIVITY HEADER
+                const Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text("Recent Activity", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    Icon(Icons.history, color: Colors.grey),
+                  ],
+                ),
+                const SizedBox(height: 10),
+
+                // D. DYNAMIC RECENT LIST
+                if (violationCount == 0)
+                  _emptyState()
+                else
+                  ...recentDocs.map((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    return _recentViolationCard(context, data);
+                  }).toList(),
+              ],
             ),
+          ),
+        );
+      },
+    );
+  }
+
+  // --- WIDGET HELPER: Summary Card ---
+  Widget _summaryCard(String title, String value, IconData icon, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color, size: 30),
+            const SizedBox(height: 10),
+            Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color)),
+            Text(title, style: const TextStyle(fontSize: 14, color: Colors.black54)),
           ],
         ),
       ),
     );
   }
-  Widget _buildStatCard(String t, String v, IconData i, Color c) => Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(i, color: c, size: 30), const SizedBox(height: 10), Text(v, style: TextStyle(color: c, fontSize: 22, fontWeight: FontWeight.bold)), Text(t, style: const TextStyle(color: Colors.grey, fontSize: 14))]));
+
+  // --- WIDGET HELPER: Recent Violation Item ---
+  Widget _recentViolationCard(BuildContext context, Map<String, dynamic> data) {
+    // Format Date
+    String dateStr = "Recent";
+    if (data['timestamp'] != null) {
+       dateStr = (data['timestamp'] as Timestamp).toDate().toString().substring(5, 16);
+    }
+
+    return Card(
+      elevation: 2,
+      margin: const EdgeInsets.only(bottom: 10),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: Colors.red[50], shape: BoxShape.circle),
+          child: const Icon(Icons.warning, color: Colors.red),
+        ),
+        title: Text(data['violationType'] ?? "Violation", style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text(dateStr),
+        trailing: Text(
+          "-${data['fineAmount']} JOD", 
+          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red)
+        ),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => ViolationDetailsScreen(data: data)),
+          );
+        },
+      ),
+    );
+  }
+
+  // --- WIDGET HELPER: Empty State ---
+  Widget _emptyState() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.green[50],
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.green.withOpacity(0.3)),
+      ),
+      child: const Column(
+        children: [
+          Icon(Icons.check_circle, color: Colors.green, size: 40),
+          SizedBox(height: 10),
+          Text("No recent violations!", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+          Text("You are driving safely.", style: TextStyle(color: Colors.green)),
+        ],
+      ),
+    );
+  }
 }
