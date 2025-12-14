@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart'; // REQUIRED FOR ONLINE
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:traffic_violation_app/screens/splash_screen.dart'; // REQUIRED FOR DATABASE
 
 // --- 1. INITIALIZATION (ONLINE MODE) ---
