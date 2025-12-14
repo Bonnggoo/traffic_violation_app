@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:traffic_violation_app/Screens/MainLayout.dart';
+import 'package:traffic_violation_app/screens/main_layout.dart';
 
 // --- 3. LOGIN SCREEN ---
 class LoginScreen extends StatelessWidget {

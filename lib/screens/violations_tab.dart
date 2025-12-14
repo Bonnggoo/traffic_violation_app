@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:traffic_violation_app/Screens/DetailsScreen.dart';
+import 'package:traffic_violation_app/screens/details_screen.dart';
 
 // --- 6. VIOLATIONS TAB (ONLINE & REAL-TIME) ---
 class ViolationsTab extends StatelessWidget {

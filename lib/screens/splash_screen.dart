@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:traffic_violation_app/Screens/LoginScreen.dart';
+import 'package:traffic_violation_app/screens/login_screen.dart';
 
 // --- 2. SPLASH SCREEN ---
 class SplashScreen extends StatefulWidget {

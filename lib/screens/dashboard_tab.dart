@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:traffic_violation_app/Screens/DetailsScreen.dart';
+import 'package:traffic_violation_app/screens/details_screen.dart';
 
 // --- 5. DASHBOARD TAB ---
 class DashboardTab extends StatelessWidget {

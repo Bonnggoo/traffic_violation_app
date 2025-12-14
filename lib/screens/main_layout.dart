@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:traffic_violation_app/Screens/DashboardTab.dart';
-import 'package:traffic_violation_app/Screens/ProfileTab.dart';
-import 'package:traffic_violation_app/Screens/ViolationsTab.dart';
+import 'package:traffic_violation_app/screens/dashboard_tab.dart';
+import 'package:traffic_violation_app/screens/profile_tab.dart';
+import 'package:traffic_violation_app/screens/violations_tab.dart';
 
 // --- 4. MAIN LAYOUT ---
 class MainAppLayout extends StatefulWidget {
