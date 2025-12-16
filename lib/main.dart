@@ -1,14 +1,45 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart'; // REQUIRED FOR ONLINE
-import 'package:traffic_violation_app/screens/splash_screen.dart'; // REQUIRED FOR DATABASE
+import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_messaging/firebase_messaging.dart'; // New Package
+import 'screens/login_screen.dart'; 
+import 'firebase_options.dart'; 
 
-// --- 1. INITIALIZATION (ONLINE MODE) ---
+// Background Handler (Must be outside any class)
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  print("Handling a background message: ${message.messageId}");
+}
+
 void main() async {
-  // We must wait for Flutter to wake up before connecting to the internet
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // 1. Setup Notifications
+  FirebaseMessaging messaging = FirebaseMessaging.instance;
   
-  // Start the connection to Firebase
-  await Firebase.initializeApp();
+  // Request permission (Required for Apple, good practice for Android 13+)
+  await messaging.requestPermission(
+    alert: true,
+    badge: true,
+    sound: true,
+  );
+
+  // 2. Get the Device Token (The "Phone Number" for notifications)
+  String? token = await messaging.getToken();
+  print("📲 My Device Token: $token");
+
+  // 3. Save Token to Database so the Pi knows who to message
+  if (token != null) {
+    await FirebaseFirestore.instance.collection('settings').doc('admin_phone').set({
+      'fcmToken': token,
+      'updatedAt': DateTime.now(),
+    });
+  }
+
+  // 4. Set Background Handler
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   runApp(const TrafficApp());
 }
@@ -19,37 +50,23 @@ class TrafficApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Traffic Violation Tracker',
       debugShowCheckedModeBanner: false,
+      title: 'Traffic Guard',
       theme: ThemeData(
-        // --- OLIVE & BEIGE THEME ---
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF556B2F),
-          primary: const Color(0xFF556B2F),
-          secondary: const Color(0xFF8F9779),
-          surface: const Color(0xFFF5F5DC),
-          onSurface: const Color(0xFF3E3E3E),
-        ),
-        scaffoldBackgroundColor: const Color(0xFFF5F5DC),
+        primaryColor: const Color(0xFF556B2F),
         useMaterial3: true,
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF556B2F),
-          foregroundColor: Colors.white,
-          elevation: 0,
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF556B2F),
-            foregroundColor: const Color(0xFFF5F5DC),
-          ),
-        ),
-        bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-          backgroundColor: Color(0xFFFFFFF0),
-          selectedItemColor: Color(0xFF556B2F),
-          unselectedItemColor: Colors.grey,
-        ),
       ),
-      home: const SplashScreen(),
+      home: const AuthWrapper(),
     );
+  }
+}
+
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
+  @override
+  Widget build(BuildContext context) {
+    // Basic check: If token exists locally (logic depends on your auth setup)
+    // For now, we default to LoginScreen for safety
+    return const LoginScreen();
   }
 }

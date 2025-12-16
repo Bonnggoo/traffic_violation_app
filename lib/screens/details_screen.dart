@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart'; // Free Map Widget
-import 'package:latlong2/latlong.dart'; // Coordinate Helper
+import 'package:flutter_map/flutter_map.dart'; 
+import 'package:latlong2/latlong.dart'; 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ViolationDetailsScreen extends StatelessWidget {
@@ -11,11 +11,11 @@ class ViolationDetailsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // --- 1. SAFE DATA PARSING ---
-    // Handle coordinates safely (converts int to double if needed)
     final location = data['location'];
     final double lat = location != null ? (location['lat'] as num).toDouble() : 31.9539;
     final double lng = location != null ? (location['lng'] as num).toDouble() : 35.9106;
     final LatLng point = LatLng(lat, lng);
+    final String imageUrl = data['imageUrl'] ?? "https://via.placeholder.com/150";
 
     // Handle date formatting
     String dateStr = "Unknown Date";
@@ -28,10 +28,10 @@ class ViolationDetailsScreen extends StatelessWidget {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5), // Light background
+      backgroundColor: const Color(0xFFF5F5F5), 
       appBar: AppBar(
         title: const Text("Violation Details"),
-        backgroundColor: const Color(0xFF556B2F), // Traffic Guard Green
+        backgroundColor: const Color(0xFF556B2F), 
         foregroundColor: Colors.white,
       ),
       body: SingleChildScrollView(
@@ -72,7 +72,6 @@ class ViolationDetailsScreen extends StatelessWidget {
                   Expanded(
                     child: GestureDetector(
                       onTap: () {
-                        // Navigate to Full Screen Map
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -89,13 +88,12 @@ class ViolationDetailsScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(15),
                           child: Stack(
                             children: [
-                              // The Map
                               FlutterMap(
                                 options: MapOptions(
                                   initialCenter: point,
                                   initialZoom: 14.0,
                                   interactionOptions: const InteractionOptions(
-                                    flags: InteractiveFlag.none, // Locked (Mini-mode)
+                                    flags: InteractiveFlag.none, 
                                   ),
                                 ),
                                 children: [
@@ -114,7 +112,6 @@ class ViolationDetailsScreen extends StatelessWidget {
                                   ),
                                 ],
                               ),
-                              // "Expand" Icon overlay
                               Positioned(
                                 right: 5,
                                 bottom: 5,
@@ -136,20 +133,42 @@ class ViolationDetailsScreen extends StatelessWidget {
                   
                   const SizedBox(width: 15),
 
-                  // 2. Car Photo
+                  // 2. Car Photo (Clickable)
                   Expanded(
                     child: GestureDetector(
                       onTap: () {
-                         // Optional: Add full-screen photo logic here later
+                         // --- NEW: Navigate to Full Screen Image ---
+                         Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => FullScreenImage(imageUrl: imageUrl),
+                          ),
+                        );
                       },
                       child: Container(
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(15),
                           image: DecorationImage(
-                            image: NetworkImage(data['imageUrl'] ?? "https://via.placeholder.com/150"),
+                            image: NetworkImage(imageUrl),
                             fit: BoxFit.cover,
                           ),
                           border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: Stack(
+                          children: [
+                            Positioned(
+                              right: 5,
+                              bottom: 5,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.8),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.zoom_in, size: 20, color: Colors.black54),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -186,7 +205,7 @@ class ViolationDetailsScreen extends StatelessWidget {
               child: OutlinedButton.icon(
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Redirecting to e-Fawateer... (Simulated)")),
+                    const SnackBar(content: Text("Redirecting to payment gateway...")),
                   );
                 },
                 icon: const Icon(Icons.credit_card),
@@ -204,7 +223,6 @@ class ViolationDetailsScreen extends StatelessWidget {
     );
   }
 
-  // Helper for rows
   Widget _row(String label, String value, {bool isBold = false, Color? color}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -223,7 +241,7 @@ class ViolationDetailsScreen extends StatelessWidget {
   }
 }
 
-// --- NEW SCREEN: FULL SCREEN MAP ---
+// --- FULL SCREEN MAP ---
 class FullScreenMap extends StatelessWidget {
   final LatLng point;
   const FullScreenMap({super.key, required this.point});
@@ -239,9 +257,9 @@ class FullScreenMap extends StatelessWidget {
       body: FlutterMap(
         options: MapOptions(
           initialCenter: point,
-          initialZoom: 16.0, // Zoomed in closer
+          initialZoom: 16.0, 
           interactionOptions: const InteractionOptions(
-            flags: InteractiveFlag.all, // Allow Zoom & Pan!
+            flags: InteractiveFlag.all, 
           ),
         ),
         children: [
@@ -260,6 +278,33 @@ class FullScreenMap extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+// --- NEW CLASS: FULL SCREEN IMAGE ---
+class FullScreenImage extends StatelessWidget {
+  final String imageUrl;
+  const FullScreenImage({super.key, required this.imageUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black, // Dark background for photos
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: const Text("Evidence Photo"),
+      ),
+      body: Center(
+        // InteractiveViewer allows Pinch-to-Zoom!
+        child: InteractiveViewer(
+          panEnabled: true, // Allow dragging
+          minScale: 0.5,
+          maxScale: 4.0, // Allow zooming in 4x
+          child: Image.network(imageUrl),
+        ),
       ),
     );
   }
