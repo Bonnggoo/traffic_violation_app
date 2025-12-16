@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // For Timestamp handling
+import 'package:flutter_map/flutter_map.dart'; // Free Map Widget
+import 'package:latlong2/latlong.dart'; // Coordinate Helper
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ViolationDetailsScreen extends StatelessWidget {
   final Map<String, dynamic> data;
@@ -8,151 +10,192 @@ class ViolationDetailsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 1. Safe Date Formatting
-    String dateString = "Unknown Date";
+    // --- 1. SAFE DATA PARSING ---
+    // Handle coordinates safely (converts int to double if needed)
+    final location = data['location'];
+    final double lat = location != null ? (location['lat'] as num).toDouble() : 31.9539;
+    final double lng = location != null ? (location['lng'] as num).toDouble() : 35.9106;
+    final LatLng point = LatLng(lat, lng);
+
+    // Handle date formatting
+    String dateStr = "Unknown Date";
     if (data['timestamp'] != null) {
-      try {
-        dateString = (data['timestamp'] as Timestamp).toDate().toString().substring(0, 16);
-      } catch (e) {
-        dateString = "Invalid Date";
+      if (data['timestamp'] is Timestamp) {
+        dateStr = (data['timestamp'] as Timestamp).toDate().toString().substring(0, 16);
+      } else {
+        dateStr = data['timestamp'].toString();
       }
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Violation Details")),
+      backgroundColor: const Color(0xFFF5F5F5), // Light background
+      appBar: AppBar(
+        title: const Text("Violation Details"),
+        backgroundColor: const Color(0xFF556B2F), // Traffic Guard Green
+        foregroundColor: Colors.white,
+      ),
       body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // A. INFO CARD
-            Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Card(
-                elevation: 0,
-                color: const Color(0xFFFFFFF0),
-                shape: RoundedRectangleBorder(
-                  side: const BorderSide(color: Color(0xFF556B2F)),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(15.0),
-                  child: Column(
-                    children: [
-                      _row("Violation Type", data['violationType'] ?? 'Unknown', true),
-                      const Divider(),
-                      _row("Fine Amount", "${data['fineAmount'] ?? 0} JOD", true, Colors.red),
-                      const Divider(),
-                      _row("Date & Time", dateString, false),
-                      const Divider(),
-                      _row("Vehicle Speed", "${data['speed'] ?? 0} km/h", false),
-                    ],
-                  ),
-                ),
+            // --- A. INFO CARD ---
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(15),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)
+                ],
               ),
-            ),
-
-            // B. MAP AND IMAGE (Fixed Size Layout)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20.0),
-              child: SizedBox(
-                height: 180, // LOCK THE HEIGHT
-                child: Row(
-                  children: [
-                    // --- Map Placeholder (Left) ---
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.grey[300],
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.grey),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.location_on, color: Colors.red, size: 40),
-                            const SizedBox(height: 5),
-                            Text(
-                              "Lat: ${data['location']?['lat'] ?? '?'}\nLng: ${data['location']?['lng'] ?? '?'}",
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(fontSize: 10, color: Colors.black54),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    
-                    const SizedBox(width: 10), // Spacing
-
-                    // --- Image Evidence (Right) ---
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.black12,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.grey),
-                        ),
-                        clipBehavior: Clip.antiAlias, 
-                        child: Image.network(
-                          data['imageUrl'] ?? "https://via.placeholder.com/150", // Fallback image
-                          
-                          // FORCE IMAGE TO FILL THE BOX
-                          fit: BoxFit.cover, 
-                          width: double.infinity, 
-                          height: double.infinity,
-                          
-                          // Loading Builder
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return const Center(child: CircularProgressIndicator());
-                          },
-                          
-                          // Error Builder
-                          errorBuilder: (context, error, stackTrace) {
-                            return const Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.broken_image, size: 40, color: Colors.grey),
-                                  Text("No Image", style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            // C. ACTION BUTTONS
-            Padding(
-              padding: const EdgeInsets.all(20.0),
               child: Column(
                 children: [
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Dispute request sent to Traffic Department.")),
-                      );
-                    },
-                    icon: const Icon(Icons.gavel),
-                    label: const Text("Dispute This Violation"),
-                    style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
+                  _row("Violation Type", data['violationType'] ?? "Unknown", isBold: true),
+                  const Divider(height: 30),
+                  _row("Fine Amount", "${data['fineAmount']} JOD", color: Colors.red),
+                  const Divider(height: 30),
+                  _row("Date & Time", dateStr),
+                  const Divider(height: 30),
+                  _row("Vehicle Speed", "${data['speed']} km/h"),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // --- B. MEDIA ROW (Map + Photo) ---
+            SizedBox(
+              height: 180, 
+              child: Row(
+                children: [
+                  // 1. Mini Map (Clickable)
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        // Navigate to Full Screen Map
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => FullScreenMap(point: point),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(15),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(15),
+                          child: Stack(
+                            children: [
+                              // The Map
+                              FlutterMap(
+                                options: MapOptions(
+                                  initialCenter: point,
+                                  initialZoom: 14.0,
+                                  interactionOptions: const InteractionOptions(
+                                    flags: InteractiveFlag.none, // Locked (Mini-mode)
+                                  ),
+                                ),
+                                children: [
+                                  TileLayer(
+                                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                  ),
+                                  MarkerLayer(
+                                    markers: [
+                                      Marker(
+                                        point: point,
+                                        width: 40,
+                                        height: 40,
+                                        child: const Icon(Icons.location_on, color: Colors.red, size: 40),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              // "Expand" Icon overlay
+                              Positioned(
+                                right: 5,
+                                bottom: 5,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.8),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.fullscreen, size: 20, color: Colors.black54),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 10),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                       // In the future, this could open a payment gateway
-                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Payment gateway not connected.")),
-                      );
-                    },
-                    icon: const Icon(Icons.payment),
-                    label: const Text("Pay Fine Now"),
-                    style: OutlinedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
+                  
+                  const SizedBox(width: 15),
+
+                  // 2. Car Photo
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                         // Optional: Add full-screen photo logic here later
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(15),
+                          image: DecorationImage(
+                            image: NetworkImage(data['imageUrl'] ?? "https://via.placeholder.com/150"),
+                            fit: BoxFit.cover,
+                          ),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                      ),
+                    ),
                   ),
                 ],
+              ),
+            ),
+
+            const SizedBox(height: 30),
+
+            // --- C. ACTION BUTTONS ---
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Dispute request sent to review.")),
+                  );
+                },
+                icon: const Icon(Icons.gavel),
+                label: const Text("Dispute This Violation"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF556B2F),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 15),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Redirecting to e-Fawateer... (Simulated)")),
+                  );
+                },
+                icon: const Icon(Icons.credit_card),
+                label: const Text("Pay Fine Now"),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF556B2F),
+                  side: const BorderSide(color: Color(0xFF556B2F)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
               ),
             ),
           ],
@@ -161,23 +204,60 @@ class ViolationDetailsScreen extends StatelessWidget {
     );
   }
 
-  // Helper widget to build rows cleanly
-  Widget _row(String label, String value, bool isBold, [Color? color]) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  // Helper for rows
+  Widget _row(String label, String value, {bool isBold = false, Color? color}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 16)),
+        Text(
+          value, 
+          style: TextStyle(
+            fontSize: 16, 
+            fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+            color: color ?? Colors.black
+          )
+        ),
+      ],
+    );
+  }
+}
+
+// --- NEW SCREEN: FULL SCREEN MAP ---
+class FullScreenMap extends StatelessWidget {
+  final LatLng point;
+  const FullScreenMap({super.key, required this.point});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Violation Location"),
+        backgroundColor: const Color(0xFF556B2F),
+        foregroundColor: Colors.white,
+      ),
+      body: FlutterMap(
+        options: MapOptions(
+          initialCenter: point,
+          initialZoom: 16.0, // Zoomed in closer
+          interactionOptions: const InteractionOptions(
+            flags: InteractiveFlag.all, // Allow Zoom & Pan!
+          ),
+        ),
         children: [
-          Text(label, style: const TextStyle(color: Colors.grey)),
-          Flexible(
-            child: Text(
-              value,
-              style: TextStyle(
-                fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-                color: color ?? Colors.black,
-                fontSize: 16,
+          TileLayer(
+            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            userAgentPackageName: 'com.trafficguard.app',
+          ),
+          MarkerLayer(
+            markers: [
+              Marker(
+                point: point,
+                width: 60,
+                height: 60,
+                child: const Icon(Icons.location_on, color: Colors.red, size: 60),
               ),
-            ),
+            ],
           ),
         ],
       ),
