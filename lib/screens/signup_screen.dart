@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // ✅ REQUIRED for FirebaseFirestore & FieldValue
 import 'package:traffic_violation_app/screens/main_layout.dart';
 import '../main.dart'; // To access MainAppLayout
 
@@ -40,22 +41,30 @@ class _SignUpScreenState extends State<SignUpScreen> {
     setState(() => _isLoading = true);
 
     // --- THE TRICK: Convert Plate to Email ---
-    String plateInput = _plateController.text.trim();
+    String plateInput = _plateController.text.trim().toUpperCase(); // Force Uppercase
     String hiddenEmail = "$plateInput@traffic.app";
 
     try {
-      // 2. Artificial Delay (Optional, for effect)
-      await Future.delayed(const Duration(seconds: 2));
-
-      // 3. Create User in Firebase
-      await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      // 2. Create User in Firebase Auth
+      UserCredential userCred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: hiddenEmail,
         password: _passwordController.text.trim(),
       );
 
-      // (Optional) You could save extra profile data to Firestore here if needed later
-      
-      // 4. Navigate to Home on Success
+      // ---------------------------------------------------------
+      // 3. NEW: Create a Firestore Document for this User
+      // This allows us to store a LIST of plates, starting with the first one.
+      // ---------------------------------------------------------
+      if (userCred.user != null) {
+        await FirebaseFirestore.instance.collection('users').doc(userCred.user!.uid).set({
+          'email': hiddenEmail,
+          'primaryPlate': plateInput,
+          'registeredPlates': [plateInput], // <--- The List!
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      // 4. Navigate to Home
       if (mounted) {
         Navigator.pushReplacement(
           context,

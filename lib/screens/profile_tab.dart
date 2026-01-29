@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'login_screen.dart'; // To navigate back on logout
+import 'login_screen.dart'; 
 
 class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
@@ -11,182 +11,262 @@ class ProfileTab extends StatefulWidget {
 }
 
 class _ProfileTabState extends State<ProfileTab> {
-  // Local state for toggles (Visual only for now)
   bool _notifications = true;
-  bool _emailAlerts = false;
 
   @override
   Widget build(BuildContext context) {
-    // 1. Identify the Driver
     final user = FirebaseAuth.instance.currentUser;
-    String myPlateNumber = "Unknown";
-    if (user != null && user.email != null) {
-      myPlateNumber = user.email!.split('@')[0].toUpperCase();
-    }
+    if (user == null) return const Center(child: Text("Not Logged In"));
 
-    return StreamBuilder<QuerySnapshot>(
-      // 2. Listen to Database for Stats
-      stream: FirebaseFirestore.instance
-          .collection('violations')
-          .where('licensePlate', isEqualTo: myPlateNumber)
-          .snapshots(),
-          
-      builder: (context, snapshot) {
-        // --- CALCULATIONS ---
-        int totalFines = 0;
-        int violationCount = 0;
-        int safetyScore = 100;
+    // 1. IDENTITY LOGIC: The Login Email IS the Primary Plate
+    String ownerPlate = user.email!.split('@')[0].toUpperCase();
 
-        if (snapshot.hasData) {
-          final docs = snapshot.data!.docs;
-          violationCount = docs.length;
-          
-          for (var doc in docs) {
-            totalFines += (doc['fineAmount'] as num).toInt();
-          }
-          // Simple Safety Formula: Start at 100, lose 10 per violation
-          safetyScore = (100 - (violationCount * 10)).clamp(0, 100);
+    // 2. Fetch User Data (List of Plates)
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
+      builder: (context, userSnap) {
+        
+        List<dynamic> rawPlates = [];
+        
+        if (userSnap.hasData && userSnap.data!.exists) {
+          final data = userSnap.data!.data() as Map<String, dynamic>;
+          rawPlates = data['registeredPlates'] ?? [ownerPlate];
+        } else {
+          rawPlates = [ownerPlate];
         }
-        // --------------------
+        
+        // Safety: Ensure the Owner Plate is ALWAYS in the list
+        if (!rawPlates.contains(ownerPlate)) rawPlates.add(ownerPlate);
 
-        return Scaffold(
-          appBar: AppBar(title: const Text("Driver Profile")),
-          body: SingleChildScrollView(
-            child: Column(
-              children: [
-                const SizedBox(height: 30),
+        // Sort: Owner Plate ALWAYS First
+        List<String> myPlates = List<String>.from(rawPlates.map((e) => e.toString()));
+        myPlates.sort((a, b) {
+          if (a == ownerPlate) return -1;
+          if (b == ownerPlate) return 1; 
+          return a.compareTo(b);          
+        });
+
+        // 3. Fetch Violations ONLY for the OWNER PLATE (Profile Stats are personal)
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('violations')
+              .where('licensePlate', isEqualTo: ownerPlate) 
+              .snapshots(),
+          builder: (context, violationSnap) {
+            
+            // --- 🧠 SMART SCORING (For Owner Only) ---
+            int totalFines = 0;
+            double totalDeductions = 0;
+            int safetyScore = 100;
+
+            if (violationSnap.hasData) {
+              final docs = violationSnap.data!.docs;
+              
+              for (var doc in docs) {
+                final data = doc.data() as Map<String, dynamic>;
                 
-                // A. IDENTITY CARD
-                Center(
-                  child: Column(
-                    children: [
-                      // Avatar with Safety Color Ring
-                      Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: _getScoreColor(safetyScore), 
-                            width: 4
+                // Sum Fines
+                totalFines += (data['fineAmount'] as num? ?? 0).toInt();
+
+                // Get Data Points
+                String type = (data['violationType'] ?? "").toString();
+                int speed = (data['speed'] as num? ?? 0).toInt();
+                
+                DateTime violationDate = DateTime.now();
+                if (data['timestamp'] != null) {
+                  try {
+                    violationDate = (data['timestamp'] as Timestamp).toDate();
+                  } catch (e) { /* ignore */ }
+                }
+                int daysAgo = DateTime.now().difference(violationDate).inDays;
+
+                // Base Penalty
+                double penalty = 0;
+                if (type.contains("Wrong") || type.contains("Way")) {
+                  penalty = 20; 
+                } else if (type.contains("Speeding")) {
+                   if (speed > 130) penalty = 25;
+                   else if (speed > 100) penalty = 10;
+                   else penalty = 5;
+                } else {
+                  penalty = 5;
+                }
+
+                if (daysAgo > 30) penalty *= 0.5;
+                totalDeductions += penalty;
+              }
+              safetyScore = (100 - totalDeductions.toInt()).clamp(0, 100);
+            }
+            // --------------------------
+
+            return Scaffold(
+              appBar: AppBar(
+                title: const Text("Driver Profile"),
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.add_circle_outline),
+                    tooltip: "Add Vehicle",
+                    onPressed: () => _showAddVehicleDialog(context, user.uid, ownerPlate),
+                  )
+                ],
+              ),
+              body: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    const SizedBox(height: 30),
+                    // A. AVATAR (Reflects OWNER Stats)
+                    Center(
+                      child: Column(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: _getScoreColor(safetyScore), width: 4),
+                            ),
+                            child: CircleAvatar(
+                              radius: 50,
+                              backgroundColor: _getScoreColor(safetyScore),
+                              child: const Icon(Icons.person, size: 50, color: Colors.white),
+                            ),
                           ),
-                        ),
-                        child: const CircleAvatar(
-                          radius: 50,
-                          backgroundColor: Color(0xFF556B2F),
-                          child: Icon(Icons.person, size: 50, color: Colors.white),
-                        ),
-                      ),
-                      const SizedBox(height: 15),
-                      
-                      // License Plate Display
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.amber[300],
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.black, width: 2),
-                          boxShadow: [
-                            BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 4, offset: const Offset(2, 2))
-                          ]
-                        ),
-                        child: Text(
-                          myPlateNumber,
-                          style: const TextStyle(
-                            fontSize: 24, 
-                            fontWeight: FontWeight.bold, 
-                            letterSpacing: 2,
-                            color: Colors.black
+                          const SizedBox(height: 10),
+                          Text(ownerPlate, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                          Text(
+                            _getScoreLabel(safetyScore), 
+                            style: TextStyle(color: _getScoreColor(safetyScore), fontWeight: FontWeight.bold)
                           ),
-                        ),
+                        ],
                       ),
-                      const SizedBox(height: 5),
-                      Text(user?.email ?? "", style: const TextStyle(color: Colors.grey)),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 30),
-
-                // B. LIVE STATS ROW
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Row(
-                    children: [
-                      _statBox("Safety Score", "$safetyScore%", _getScoreColor(safetyScore), Icons.shield),
-                      const SizedBox(width: 15),
-                      _statBox("Total Fines", "$totalFines JOD", Colors.red, Icons.money_off),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 30),
-
-                // C. SETTINGS SECTION
-                _header("App Preferences"),
-                SwitchListTile(
-                  secondary: const Icon(Icons.notifications_active),
-                  title: const Text("Push Notifications"),
-                  subtitle: const Text("Get alerted instantly for new fines"),
-                  value: _notifications,
-                  activeColor: const Color(0xFF556B2F),
-                  onChanged: (v) => setState(() => _notifications = v),
-                ),
-                SwitchListTile(
-                  secondary: const Icon(Icons.email),
-                  title: const Text("Email Reports"),
-                  subtitle: const Text("Receive monthly summaries"),
-                  value: _emailAlerts,
-                  activeColor: const Color(0xFF556B2F),
-                  onChanged: (v) => setState(() => _emailAlerts = v),
-                ),
-
-                const SizedBox(height: 40),
-
-                // D. LOGOUT BUTTON
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: OutlinedButton.icon(
-                    onPressed: () async {
-                      // 1. Sign out from Firebase
-                      await FirebaseAuth.instance.signOut();
-                      
-                      // 2. Navigate back to Login Screen
-                      if (mounted) {
-                        Navigator.of(context).pushAndRemoveUntil(
-                          MaterialPageRoute(builder: (_) => const LoginScreen()),
-                          (route) => false, // Remove all previous routes
-                        );
-                      }
-                    },
-                    icon: const Icon(Icons.logout, color: Colors.red),
-                    label: const Text("Log Out", style: TextStyle(color: Colors.red, fontSize: 16)),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.red),
-                      minimumSize: const Size(double.infinity, 50),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
                     ),
-                  ),
+                    
+                    const SizedBox(height: 30),
+
+                    // B. STATS ROW (Reflects OWNER Stats)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Row(
+                        children: [
+                          _statBox("Safety Score", "$safetyScore%", _getScoreColor(safetyScore), Icons.shield),
+                          const SizedBox(width: 15),
+                          _statBox("Total Fines", "$totalFines JOD", Colors.red, Icons.money_off),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 30),
+
+                    // C. MY VEHICLES LIST (Static / Read-Only)
+                    _header("My Registered Vehicles"),
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: myPlates.length,
+                      itemBuilder: (ctx, index) {
+                        String plate = myPlates[index];
+                        bool isOwner = (plate == ownerPlate);
+
+                        return ListTile(
+                          // onTap is REMOVED to make it non-clickable
+                          leading: Icon(
+                            Icons.directions_car, 
+                            color: isOwner ? const Color(0xFF556B2F) : Colors.grey
+                          ),
+                          title: Text(
+                            plate, 
+                            style: TextStyle(
+                              fontWeight: isOwner ? FontWeight.bold : FontWeight.normal,
+                              color: Colors.black87
+                            )
+                          ),
+                          subtitle: isOwner 
+                              ? const Text("Owner's Vehicle", style: TextStyle(fontSize: 12, color: Colors.amber, fontWeight: FontWeight.bold))
+                              : const Text("Monitored Vehicle", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                          
+                          trailing: isOwner
+                              ? const Icon(Icons.lock, color: Colors.grey, size: 18) 
+                              : IconButton( 
+                                  icon: const Icon(Icons.delete, color: Colors.red),
+                                  onPressed: () => _removeVehicle(user.uid, plate),
+                                ),
+                        );
+                      },
+                    ),
+
+                    const SizedBox(height: 20),
+                    _header("App Preferences"),
+                    SwitchListTile(
+                      title: const Text("Push Notifications"),
+                      value: _notifications,
+                      onChanged: (v) => setState(() => _notifications = v),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          await FirebaseAuth.instance.signOut();
+                          if (mounted) {
+                            Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute(builder: (_) => const LoginScreen()),
+                              (route) => false,
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.logout, color: Colors.red),
+                        label: const Text("Log Out"),
+                        style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 30),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
   }
 
-  // --- HELPER: Stat Box ---
+  // --- LOGIC FUNCTIONS ---
+  void _showAddVehicleDialog(BuildContext context, String uid, String ownerPlate) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Monitor New Vehicle"),
+        content: TextField(controller: controller, decoration: const InputDecoration(hintText: "Plate Number")),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+          ElevatedButton(
+            onPressed: () async {
+              String newPlate = controller.text.trim().toUpperCase();
+              if (newPlate.isNotEmpty) {
+                // Ensure owner plate is preserved
+                await FirebaseFirestore.instance.collection('users').doc(uid).set({
+                  'registeredPlates': FieldValue.arrayUnion([ownerPlate, newPlate])
+                }, SetOptions(merge: true));
+                if (ctx.mounted) Navigator.pop(ctx);
+              }
+            },
+            child: const Text("Add"),
+          )
+        ],
+      ),
+    );
+  }
+
+  Future<void> _removeVehicle(String uid, String plate) async {
+    await FirebaseFirestore.instance.collection('users').doc(uid).update({'registeredPlates': FieldValue.arrayRemove([plate])});
+  }
+
+  // --- UI HELPERS ---
   Widget _statBox(String label, String value, Color color, IconData icon) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(15),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          boxShadow: [
-             BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))
-          ],
+          color: Colors.white, borderRadius: BorderRadius.circular(15),
+          boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))],
           border: Border.all(color: color.withOpacity(0.2)),
         ),
         child: Column(
@@ -201,18 +281,22 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
-  // --- HELPER: Header Text ---
   Widget _header(String t) => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-    color: Colors.grey[100],
-    child: Text(t, style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold))
+    width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10), color: Colors.grey[200],
+    child: Text(t, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black54)),
   );
 
-  // --- HELPER: Color Logic ---
   Color _getScoreColor(int score) {
-    if (score >= 80) return Colors.green;
+    if (score >= 90) return Colors.green;
+    if (score >= 70) return Colors.lightGreen;
     if (score >= 50) return Colors.orange;
     return Colors.red;
+  }
+
+  String _getScoreLabel(int score) {
+    if (score >= 90) return "Excellent Driver";
+    if (score >= 70) return "Good Driver";
+    if (score >= 50) return "At Risk";
+    return "Dangerous Driver";
   }
 }
