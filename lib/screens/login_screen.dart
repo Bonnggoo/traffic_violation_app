@@ -125,7 +125,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   controller: _plateController,
                   decoration: const InputDecoration(
                     labelText: "License Plate Number",
-                    hintText: "e.g. 50-TEST",
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.directions_car, color: Color(0xFF556B2F)),
                     filled: true,

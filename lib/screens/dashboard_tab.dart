@@ -18,7 +18,7 @@ class _DashboardTabState extends State<DashboardTab> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return const Center(child: Text("Error: No User"));
 
-    // 1. Listen to USER PROFILE to get list of cars
+    // 1. Listen to USER PROFILE
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
       builder: (context, userSnap) {
@@ -32,96 +32,110 @@ class _DashboardTabState extends State<DashboardTab> {
            primaryPlate = data['primaryPlate'] ?? (user.email!.split('@')[0].toUpperCase());
         }
 
-        // Fallback
         if (rawPlates.isEmpty) {
           rawPlates = [user.email!.split('@')[0].toUpperCase()];
         }
 
-        // Sort: Primary First
         List<String> myPlates = List<String>.from(rawPlates.map((e) => e.toString()));
         if (myPlates.contains(primaryPlate)) {
           myPlates.remove(primaryPlate);
           myPlates.insert(0, primaryPlate);
         }
 
-        // Default selection logic
         if (_selectedPlate == null || !myPlates.contains(_selectedPlate)) {
           _selectedPlate = myPlates.first;
         }
 
-        // 2. Listen to VIOLATIONS for the SELECTED Plate
+        // 2. Listen to VIOLATIONS
         return StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
               .collection('violations')
               .where('licensePlate', isEqualTo: _selectedPlate)
-              .orderBy('timestamp', descending: true)
+              // Note: We fetch ALL to calculate the accurate score history
               .snapshots(),
               
           builder: (context, violationSnap) {
             
-            // --- 🧠 SMART SCORING 2.0 (MATCHING PROFILE TAB) ---
+            // --- 🧠 SMART SCORE ALGORITHM 3.0 (Matches Profile Logic) ---
             int totalFines = 0;
             double totalDeductions = 0;
             int safetyScore = 100;
             List<QueryDocumentSnapshot> recentDocs = [];
+            int wrongWayCount = 0;
+            DateTime? lastViolationDate;
 
             if (violationSnap.hasData) {
               final docs = violationSnap.data!.docs;
               
-              // A. Recent Activity List (Top 2)
-              if (docs.length > 2) recentDocs = docs.sublist(0, 2);
-              else recentDocs = docs;
+              // 1. Sort by Date Ascending (Oldest First) for Calculation
+              List<QueryDocumentSnapshot> sortedDocs = List.from(docs);
+              sortedDocs.sort((a, b) {
+                 Timestamp t1 = a['timestamp'] ?? Timestamp.now();
+                 Timestamp t2 = b['timestamp'] ?? Timestamp.now();
+                 return t1.compareTo(t2); 
+              });
 
-              // B. Calculate Score
-              for (var doc in docs) {
+              // 2. Calculate Score (Progressive)
+              for (var doc in sortedDocs) {
                 final data = doc.data() as Map<String, dynamic>;
                 
-                // Sum Fines
+                // Track latest violation date
+                DateTime vDate = DateTime.now();
+                if (data['timestamp'] != null) {
+                  vDate = (data['timestamp'] as Timestamp).toDate();
+                }
+                if (lastViolationDate == null || vDate.isAfter(lastViolationDate!)) {
+                  lastViolationDate = vDate;
+                }
+
                 totalFines += (data['fineAmount'] as num? ?? 0).toInt();
 
-                // Get Data Points
                 String type = (data['violationType'] ?? "").toString();
                 int speed = (data['speed'] as num? ?? 0).toInt();
-                
-                // Safe Date Parsing for Time Decay
-                DateTime violationDate = DateTime.now();
-                if (data['timestamp'] != null) {
-                  try {
-                    violationDate = (data['timestamp'] as Timestamp).toDate();
-                  } catch (e) { /* ignore */ }
-                }
-                int daysAgo = DateTime.now().difference(violationDate).inDays;
-
-                // Base Penalty Logic
                 double penalty = 0;
 
+                // Wrong Way: Progressive
                 if (type.contains("Wrong") || type.contains("Way")) {
-                  penalty = 20; 
-                } else if (type.contains("Speeding")) {
-                   // Tiered Speeding Logic
-                   if (speed > 130) {
-                     penalty = 25; // Severe
-                   } else if (speed > 100) {
-                     penalty = 10; // Moderate
-                   } else {
-                     penalty = 5;  // Minor
-                   }
+                  wrongWayCount++;
+                  if (wrongWayCount == 1) penalty = 5;
+                  else if (wrongWayCount == 2) penalty = 15;
+                  else penalty = 30;
+                } 
+                // Speeding: Tiered (100km/h limit assumed)
+                else if (type.contains("Speeding")) {
+                   int overLimit = speed - 100;
+                   if (overLimit > 30) penalty = 30;
+                   else if (overLimit > 15) penalty = 15;
+                   else penalty = 5;
                 } else {
-                  penalty = 5; // Unknown/Other
-                }
-
-                // Time Decay (50% off if > 30 days)
-                if (daysAgo > 30) {
-                  penalty = penalty * 0.5;
+                  penalty = 5; 
                 }
 
                 totalDeductions += penalty;
               }
-              // Final Calculation
-              safetyScore = (100 - totalDeductions.toInt()).clamp(0, 100);
+
+              // 3. Base Score Calculation
+              int rawScore = (100 - totalDeductions.toInt());
+
+              // 4. RECOVERY LOGIC (+2 pts per clean week)
+              int recoveryBonus = 0;
+              if (lastViolationDate != null) {
+                int daysSinceLast = DateTime.now().difference(lastViolationDate!).inDays;
+                int cleanWeeks = (daysSinceLast / 7).floor(); 
+                recoveryBonus = cleanWeeks * 2;
+              } else {
+                recoveryBonus = 0; 
+              }
+
+              // Final Score
+              safetyScore = (rawScore + recoveryBonus).clamp(0, 100);
+
+              // 5. Prepare Recent Docs (Reverse Order so Newest is Top)
+              recentDocs = List.from(sortedDocs.reversed);
+              if (recentDocs.length > 2) recentDocs = recentDocs.sublist(0, 2);
             }
             
-            // Determine Color based on new thresholds
+            // Color Logic 
             Color scoreColor = Colors.red;
             if (safetyScore >= 90) scoreColor = Colors.green;
             else if (safetyScore >= 70) scoreColor = Colors.lightGreen;
@@ -139,7 +153,7 @@ class _DashboardTabState extends State<DashboardTab> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // A. VEHICLE SELECTOR (Dropdown)
+                    // A. VEHICLE SELECTOR
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
                       decoration: BoxDecoration(
@@ -163,7 +177,6 @@ class _DashboardTabState extends State<DashboardTab> {
                                     value,
                                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                                   ),
-                                  // Show star next to primary in dropdown
                                   if (value == primaryPlate) ...[
                                     const SizedBox(width: 5),
                                     const Icon(Icons.star, size: 16, color: Colors.amber)

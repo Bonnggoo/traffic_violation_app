@@ -46,7 +46,7 @@ class _ProfileTabState extends State<ProfileTab> {
           return a.compareTo(b);          
         });
 
-        // 3. Fetch Violations ONLY for the OWNER PLATE (Profile Stats are personal)
+        // 3. Fetch Violations ONLY for the OWNER PLATE
         return StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
               .collection('violations')
@@ -54,50 +54,82 @@ class _ProfileTabState extends State<ProfileTab> {
               .snapshots(),
           builder: (context, violationSnap) {
             
-            // --- 🧠 SMART SCORING (For Owner Only) ---
+            // --- 🧠 SMART SCORE ALGORITHM 3.0 (Fully Matches Slides) ---
             int totalFines = 0;
             double totalDeductions = 0;
-            int safetyScore = 100;
+            int wrongWayCount = 0;
+            DateTime? lastViolationDate; // To track "violation-free" time
 
             if (violationSnap.hasData) {
               final docs = violationSnap.data!.docs;
               
-              for (var doc in docs) {
+              // 1. Sort by Date (Oldest to Newest) to count progressive penalties correctly
+              List<QueryDocumentSnapshot> sortedDocs = List.from(docs);
+              sortedDocs.sort((a, b) {
+                 Timestamp t1 = a['timestamp'] ?? Timestamp.now();
+                 Timestamp t2 = b['timestamp'] ?? Timestamp.now();
+                 return t1.compareTo(t2); 
+              });
+
+              // 2. Calculate Penalties
+              for (var doc in sortedDocs) {
                 final data = doc.data() as Map<String, dynamic>;
                 
-                // Sum Fines
-                totalFines += (data['fineAmount'] as num? ?? 0).toInt();
+                // Update latest violation date
+                DateTime vDate = DateTime.now();
+                if (data['timestamp'] != null) {
+                  vDate = (data['timestamp'] as Timestamp).toDate();
+                }
+                if (lastViolationDate == null || vDate.isAfter(lastViolationDate!)) {
+                  lastViolationDate = vDate;
+                }
 
-                // Get Data Points
+                totalFines += (data['fineAmount'] as num? ?? 0).toInt();
+                
                 String type = (data['violationType'] ?? "").toString();
                 int speed = (data['speed'] as num? ?? 0).toInt();
-                
-                DateTime violationDate = DateTime.now();
-                if (data['timestamp'] != null) {
-                  try {
-                    violationDate = (data['timestamp'] as Timestamp).toDate();
-                  } catch (e) { /* ignore */ }
-                }
-                int daysAgo = DateTime.now().difference(violationDate).inDays;
-
-                // Base Penalty
                 double penalty = 0;
-                if (type.contains("Wrong") || type.contains("Way")) {
-                  penalty = 20; 
-                } else if (type.contains("Speeding")) {
-                   if (speed > 130) penalty = 25;
-                   else if (speed > 100) penalty = 10;
-                   else penalty = 5;
-                } else {
-                  penalty = 5;
-                }
 
-                if (daysAgo > 30) penalty *= 0.5;
+                // WRONG WAY (Progressive) -> Matches Slide
+                if (type.contains("Wrong") || type.contains("Way")) {
+                  wrongWayCount++;
+                  if (wrongWayCount == 1) penalty = 5;
+                  else if (wrongWayCount == 2) penalty = 15;
+                  else penalty = 3;
+                } 
+                // SPEEDING (Tiered) -> Matches Slide
+                else if (type.contains("Speeding")) {
+                   int overLimit = speed - 100; // Assuming 100km/h limit
+                   
+                   if (overLimit > 30) penalty = 30;       // >30 km/h over
+                   else if (overLimit > 15) penalty = 15;  // 15-30 km/h over
+                   else penalty = 5;                       // 5-15 km/h over
+                } else {
+                  penalty = 5; // Default minor penalty
+                }
+                
                 totalDeductions += penalty;
               }
-              safetyScore = (100 - totalDeductions.toInt()).clamp(0, 100);
             }
-            // --------------------------
+
+            // 3. Base Score Calculation
+            int rawScore = (100 - totalDeductions.toInt());
+
+            // 4. RECOVERY LOGIC (+2 pts per clean week) -> Matches Slide
+            int recoveryBonus = 0;
+            if (lastViolationDate != null) {
+              int daysSinceLast = DateTime.now().difference(lastViolationDate!).inDays;
+              int cleanWeeks = (daysSinceLast / 7).floor(); // Full weeks only
+              recoveryBonus = cleanWeeks * 2;
+            } else {
+              // Perfect driver (no violations ever)
+              recoveryBonus = 0; 
+            }
+
+            // Final Score (Base - Deductions + Recovery), Clamped 0-100
+            int safetyScore = (rawScore + recoveryBonus).clamp(0, 100);
+            
+            // -------------------------------------------------------------
 
             return Scaffold(
               appBar: AppBar(
@@ -114,7 +146,7 @@ class _ProfileTabState extends State<ProfileTab> {
                 child: Column(
                   children: [
                     const SizedBox(height: 30),
-                    // A. AVATAR (Reflects OWNER Stats)
+                    // A. AVATAR
                     Center(
                       child: Column(
                         children: [
@@ -142,7 +174,7 @@ class _ProfileTabState extends State<ProfileTab> {
                     
                     const SizedBox(height: 30),
 
-                    // B. STATS ROW (Reflects OWNER Stats)
+                    // B. STATS ROW
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: Row(
@@ -156,7 +188,7 @@ class _ProfileTabState extends State<ProfileTab> {
 
                     const SizedBox(height: 30),
 
-                    // C. MY VEHICLES LIST (Static / Read-Only)
+                    // C. MY VEHICLES LIST
                     _header("My Registered Vehicles"),
                     ListView.builder(
                       shrinkWrap: true,
@@ -167,7 +199,6 @@ class _ProfileTabState extends State<ProfileTab> {
                         bool isOwner = (plate == ownerPlate);
 
                         return ListTile(
-                          // onTap is REMOVED to make it non-clickable
                           leading: Icon(
                             Icons.directions_car, 
                             color: isOwner ? const Color(0xFF556B2F) : Colors.grey
@@ -241,7 +272,6 @@ class _ProfileTabState extends State<ProfileTab> {
             onPressed: () async {
               String newPlate = controller.text.trim().toUpperCase();
               if (newPlate.isNotEmpty) {
-                // Ensure owner plate is preserved
                 await FirebaseFirestore.instance.collection('users').doc(uid).set({
                   'registeredPlates': FieldValue.arrayUnion([ownerPlate, newPlate])
                 }, SetOptions(merge: true));
@@ -286,6 +316,7 @@ class _ProfileTabState extends State<ProfileTab> {
     child: Text(t, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black54)),
   );
 
+  // --- COLOR & LABEL LOGIC ---
   Color _getScoreColor(int score) {
     if (score >= 90) return Colors.green;
     if (score >= 70) return Colors.lightGreen;
